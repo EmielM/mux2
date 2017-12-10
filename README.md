@@ -43,7 +43,6 @@ TODO
 - Missing features from `net/http.ServeMux`
   - Host name based matching
   - Multi-goroutine safe
-  - `HandleFunc(..)` implementation
 - Perhaps: redir "/x" => "/x/" when the former is not defined, but latter is
 - Perhaps: `405 method not supported` when handler with other method matches
 - More tests
