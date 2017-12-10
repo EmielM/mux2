@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/EmielM/mux2.svg?branch=master)](http://travis-ci.org/EmielM/mux2)
+
 mux2
 ====
 
