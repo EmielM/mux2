@@ -39,8 +39,8 @@ func TestMux(t *testing.T) {
 	for _, tt := range muxTests {
 		w := httptest.NewRecorder()
 		r := httptest.NewRequest(tt.method, tt.path, nil)
-		h, pattern := m.Handler(r)
-		h.ServeHTTP(w, r)
+		m.ServeHTTP(w, r)
+		_, pattern, _ := m.Handler(r)
 		if w.Code != tt.code || (tt.body != "dontCare" && w.Body.String() != tt.body) || pattern != tt.pattern {
 			t.Errorf("%s %s = %d %s (%s), want %d %s (%s)", tt.method, tt.path, w.Code, w.Body.String(), pattern, tt.code, tt.body, tt.pattern)
 		}

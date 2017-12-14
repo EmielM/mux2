@@ -58,9 +58,9 @@ func (m *Mux) Post(p string, h http.Handler, mw ...Middleware)   { m.handle("POS
 func (m *Mux) Put(p string, h http.Handler, mw ...Middleware)    { m.handle("PUT", p, h, mw...) }
 func (m *Mux) Delete(p string, h http.Handler, mw ...Middleware) { m.handle("DELETE", p, h, mw...) }
 
-type paramKey struct{}
+type paramsKey struct{}
 
-func (m Mux) handler(host, method, path string) (http.Handler, string) {
+func (m Mux) handler(host, method, path string) (http.Handler, string, map[string]string) {
 	var b *muxEntry
 	var p map[string]string
 	for i, e := range m.m {
@@ -79,16 +79,10 @@ func (m Mux) handler(host, method, path string) (http.Handler, string) {
 		}
 	}
 	if b == nil {
-		return http.NotFoundHandler(), ""
+		return http.NotFoundHandler(), "", nil
 	}
 	h := b.h
-	if p != nil {
-		h = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			r = r.WithContext(context.WithValue(r.Context(), paramKey{}, p))
-			b.h.ServeHTTP(w, r)
-		})
-	}
-	return h, b.pattern
+	return h, b.pattern, p
 }
 
 func match(pat, str string) (bool, map[string]string) {
@@ -123,13 +117,13 @@ func match(pat, str string) (bool, map[string]string) {
 	}
 }
 
-func (m Mux) Handler(r *http.Request) (http.Handler, string) {
+func (m Mux) Handler(r *http.Request) (http.Handler, string, map[string]string) {
 	path := cleanPath(r.URL.Path)
 	if path != r.URL.Path {
-		_, pattern := m.handler(r.Host, r.Method, path)
+		_, pattern, _ := m.handler(r.Host, r.Method, path)
 		url := *r.URL
 		url.Path = path
-		return http.RedirectHandler(url.String(), http.StatusMovedPermanently), pattern
+		return http.RedirectHandler(url.String(), http.StatusMovedPermanently), pattern, nil
 	}
 	return m.handler(r.Host, r.Method, r.URL.Path)
 }
@@ -143,7 +137,10 @@ func (m Mux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	h, _ := m.Handler(r)
+	h, _, p := m.Handler(r)
+	if p != nil {
+		r = r.WithContext(context.WithValue(r.Context(), paramsKey{}, p))
+	}
 	h.ServeHTTP(w, r)
 }
 
@@ -164,8 +161,13 @@ func cleanPath(p string) string {
 	return np
 }
 
+func Params(r *http.Request) map[string]string {
+	p, _ := r.Context().Value(paramsKey{}).(map[string]string)
+	return p
+}
+
 func Param(r *http.Request, key string) string {
-	if p, _ := r.Context().Value(paramKey{}).(map[string]string); p != nil {
+	if p := Params(r); p != nil {
 		return p[key]
 	}
 	return ""
