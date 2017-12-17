@@ -4,18 +4,17 @@ import (
 	"context"
 	"net/http"
 	"path"
-	"sort"
 	"strings"
 )
 
-type muxEntry struct {
+type entry struct {
 	method  string
 	pattern string
 	h       http.Handler
 }
 
 type Mux struct {
-	m  []muxEntry
+	m  []entry
 	mw []Middleware
 }
 
@@ -41,16 +40,23 @@ func (m *Mux) Pop(_ Middleware) {
 }
 
 func (m *Mux) handle(method, pattern string, h http.Handler, mw ...Middleware) {
-	// we need a wildcard indicator that compares less than all other chars:
+	// "!" is used as wildcard indicator that compares less than all other chars
 	pattern = strings.Replace(pattern, ":", "!", -1)
 	for _, x := range append(mw, m.mw...) {
 		h = x(h)
 	}
-	m.m = append(m.m, muxEntry{method, pattern, h})
+	// insert new entry into sorted m.m:
+	i := 0
+	for i < len(m.m) && m.m[i].pattern > pattern {
+		i++
+	}
+	m.m = append(m.m[:i], append([]entry{{method, pattern, h}}, m.m[i:]...)...)
 
+	/* alternative using sort.Slice:
+	m.m = append(m.m, muxEntry{method, pattern, h})
 	sort.Slice(m.m, func(i, j int) bool {
 		return m.m[i].pattern > m.m[j].pattern
-	})
+	})*/
 }
 
 func (m *Mux) Handle(p string, h http.Handler, mw ...Middleware) {
@@ -85,14 +91,14 @@ func (m Mux) handler(host, method, path string) (http.Handler, string) {
 	// (since "/!userID" is the first value less than "/123")
 
 	if i != len(m.m) {
-		// fast-path for static routes, since match("abc", "abc") is still a lot slower than "abc" == "abc"
 		e := m.m[i]
 		if (e.method == "" || e.method == method) && e.pattern == path {
+			// fast-path for static routes, since match("abc", /"abc") is a lot slower than "/abc" == "/abc"
 			return e.h, e.pattern
 		}
 	}
 
-	// go pattern-match till first match
+	// pattern-match till first match
 	for i < len(m.m) {
 		e := m.m[i]
 		if (e.method == "" || e.method == method) && match(e.pattern, path) {

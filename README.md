@@ -40,7 +40,7 @@ var apiHandler = mux2.NewFromFunc(func(m *mux2.Mux) {
 
 Implementation
 --------------
-The implementation is simple, but smart: a binary search in a sorted slice to make static routing very fast and simultanuously smallen the search space for dynamic routing. There are few allocations per request, but as we use the normal `http.Handler` interface and need to store parameters on the request's context, there are some. Compared to the very fast [httprouter](https://github.com/julienschmidt/httprouter):
+The implementation is simple, but smart: a binary search in a sorted slice to make static routing very fast and reduce the search space for dynamic routing at the same time. There are few allocations per request, but as we use the normal `http.Handler` interface and need to store parameters on the request's context, there are some. Compared to the very fast [httprouter](https://github.com/julienschmidt/httprouter):
 - static routing performs similar
 - dynamic routing is not more than 5x slower
 - memory usage is around half
