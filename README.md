@@ -10,6 +10,10 @@ A http router (mux) with the simplicity of `net/http`'s `ServeMux`, but adds:
 m.Handle("/:userID/info", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 	userID := mux2.Param(r, "userID")
 }))
+
+// You can use parameters and static routes together:
+m.Handle("/user/me", meHandler)
+m.Handle("/user/:userID", userHandler)
 ```
 
 - HTTP method matching:
@@ -37,22 +41,28 @@ var apiHandler = mux2.NewFromFunc(func(m *mux2.Mux) {
 })
 ```
 
+Implementation & performance
+----------------------------
+The implementation is simple: requests are routed using a sorted slice of mux entries.
+- Static routing is fast and simple: a binary search in a contiguous slice.
+- Dynamic routing can still use the sorted slice to prune a lot of the search space, especially for common use cases.
+- Unintuitively, it uses roughly half the memory as implementations that use radix tries.
+- There are no heap allocations per request, except those incurred by request.WithContext(). That call alone incurs a 5x performance hit for dynamic routes, though. I don't see a way to prevent this while sticking to the `http.Handler` interface.
 
-Implementation
---------------
-The implementation is simple, but smart: a binary search in a sorted slice to make static routing very fast and reduce the search space for dynamic routing at the same time. There are few allocations per request, but as we use the normal `http.Handler` interface and need to store parameters on the request's context, there are some. Compared to the very fast [httprouter](https://github.com/julienschmidt/httprouter):
+All in all, compared to the very fast [httprouter](https://github.com/julienschmidt/httprouter):
 - static routing performs similar
-- dynamic routing is not more than 5x slower
+- dynamic routing is roughly 5x slower (httprouter's has an own Handler type)
 - memory usage is around half
+- approximately 5x less code
+
+(tests based on [go-http-routing-benchmark](https://github.com/emielm/go-http-routing-benchmark).)
 
 TODO
 ----
-- Missing features from `net/http.ServeMux`
-  - Host name based matching
-  - Multi-goroutine safe
-- Add more documentation, publish godoc
-- Import benchmarks to this repository
+- Add documentation in code, publish godoc
 - More tests
+- Import benchmarks to this repository: is there a way to do it without depending on httprouter?
 - Perhaps: redir "/x" => "/x/" when the former is not defined, but latter is
 - Perhaps: `405 method not supported` when handler with other method matches
-- Perhaps: think about custom cleanPath, as it is costly
+- Perhaps: multi-goroutine safe registration (like `net/http.ServeMux`)
+- Perhaps: host name based matching (like `net/http.ServeMux`)

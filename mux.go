@@ -175,13 +175,17 @@ func cleanPath(p string) string {
 	if p[0] != '/' {
 		p = "/" + p
 	}
-	np := path.Clean(p)
-	// path.Clean removes trailing slash except for root;
-	// put the trailing slash back if necessary.
-	if p[len(p)-1] == '/' && np != "/" {
-		np += "/"
+	if strings.IndexByte(p, '.') >= 0 {
+		// check because path.Clean is expensive
+		np := path.Clean(p)
+		// path.Clean removes trailing slash except for root;
+		// put the trailing slash back if necessary.
+		if p[len(p)-1] == '/' && np != "/" {
+			np += "/"
+		}
+		p = np
 	}
-	return np
+	return p
 }
 
 type params struct {
