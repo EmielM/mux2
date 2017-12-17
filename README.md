@@ -1,7 +1,4 @@
-[![Build Status](https://travis-ci.org/EmielM/mux2.svg?branch=master)](http://travis-ci.org/EmielM/mux2)
-
-mux2
-====
+# mux2 [![Build Status](https://travis-ci.org/EmielM/mux2.svg?branch=master)](http://travis-ci.org/EmielM/mux2) [![GoDoc](https://godoc.org/github.com/emielm/mux2?status.svg)](http://godoc.org/github.com/julienschmidt/httprouter)
 
 A http router (mux) with the simplicity of `net/http`'s `ServeMux`, but adds:
 
@@ -48,10 +45,11 @@ The implementation is simple: requests are routed using a sorted slice of mux en
 - Dynamic routing can still use the sorted slice to prune a lot of the search space, especially for common use cases.
 - Unintuitively, it uses roughly half the memory as implementations that use radix tries.
 - There are no heap allocations per request, except those incurred by request.WithContext(). That call alone incurs a 5x performance hit for dynamic routes, though. I don't see a way to prevent this while sticking to the `http.Handler` interface.
+- No dependencies.
 
 All in all, compared to the very fast [httprouter](https://github.com/julienschmidt/httprouter):
 - static routing performs similar
-- dynamic routing is roughly 5x slower (httprouter's has an own Handler type)
+- dynamic routing is roughly 5x slower (httprouter's has its own Handler type)
 - memory usage is around half
 - approximately 5x less code
 

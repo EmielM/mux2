@@ -30,12 +30,14 @@ func NewFromFunc(f func(*Mux)) http.Handler {
 	return m
 }
 
+// Push middleware on the middleware stack. Handlers registered hereafter will be
+// wrapped by the middleware.
 func (m *Mux) Push(mw Middleware) {
 	m.mw = append([]Middleware{mw}, m.mw...)
 }
 
+// Pop top of the middleware stack. Parameter is just for esthetics.
 func (m *Mux) Pop(_ Middleware) {
-	// parameter is just for esthetics
 	m.mw = m.mw[1:]
 }
 
@@ -59,10 +61,14 @@ func (m *Mux) handle(method, pattern string, h http.Handler, mw ...Middleware) {
 	})*/
 }
 
+// Handle registers the handler for the given pattern.
+// Any method will be matched.
 func (m *Mux) Handle(p string, h http.Handler, mw ...Middleware) {
 	m.handle("", p, h, mw...)
 }
 
+// HandleFunc registers the handler function for the given pattern.
+// Any method will be matched.
 func (m *Mux) HandleFunc(p string, h func(http.ResponseWriter, *http.Request), mw ...Middleware) {
 	m.handle("", p, http.HandlerFunc(h), mw...)
 }
@@ -70,8 +76,8 @@ func (m *Mux) HandleFunc(p string, h func(http.ResponseWriter, *http.Request), m
 func (m *Mux) Get(p string, h http.Handler, mw ...Middleware)    { m.handle("GET", p, h, mw...) }
 func (m *Mux) Post(p string, h http.Handler, mw ...Middleware)   { m.handle("POST", p, h, mw...) }
 func (m *Mux) Put(p string, h http.Handler, mw ...Middleware)    { m.handle("PUT", p, h, mw...) }
-func (m *Mux) Delete(p string, h http.Handler, mw ...Middleware) { m.handle("DELETE", p, h, mw...) }
 func (m *Mux) Patch(p string, h http.Handler, mw ...Middleware)  { m.handle("PATCH", p, h, mw...) }
+func (m *Mux) Delete(p string, h http.Handler, mw ...Middleware) { m.handle("DELETE", p, h, mw...) }
 
 func (m Mux) handler(host, method, path string) (http.Handler, string) {
 
@@ -138,6 +144,9 @@ func match(pat, str string) bool {
 	}
 }
 
+// Handler returns the handler to use for the given request,
+// consulting r.Method, r.Host, and r.URL.Path. It always returns
+// a non-nil handler.
 func (m Mux) Handler(r *http.Request) (http.Handler, string) {
 	path := cleanPath(r.URL.Path)
 	if path != r.URL.Path {
@@ -151,6 +160,8 @@ func (m Mux) Handler(r *http.Request) (http.Handler, string) {
 
 type paramsCtxKey struct{}
 
+// ServeHTTP dispatches the request to the handler whose
+// pattern most closely matches the request URL.
 func (m Mux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.RequestURI == "*" {
 		// following net/http implementation
@@ -193,6 +204,7 @@ type params struct {
 }
 
 func (pp params) Get(key string) string {
+	// Meh, this kind-of copies the match() implementation. Ideas welcome.
 	var p, s int
 	for p != len(pp.pat) && s != len(pp.str) {
 		if pp.pat[p] == '!' {
