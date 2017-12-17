@@ -21,7 +21,7 @@ var muxTests = []struct {
 	{"PUT", "/abc/../blob", 301, "dontCare", "/blob"},
 	{"PUT", "/blob", 200, "put /blob", "/blob"},
 	{"GET", "/x/a", 200, "/x/a", "/x/a"},
-	{"GET", "/123/x", 200, "/venue=123/x", "/:venueID/x"},
+	{"GET", "/123/x", 200, "/venue=123/x", "/!venueID/x"},
 }
 
 func TestMux(t *testing.T) {
@@ -40,7 +40,7 @@ func TestMux(t *testing.T) {
 		w := httptest.NewRecorder()
 		r := httptest.NewRequest(tt.method, tt.path, nil)
 		m.ServeHTTP(w, r)
-		_, pattern, _ := m.Handler(r)
+		_, pattern := m.Handler(r)
 		if w.Code != tt.code || (tt.body != "dontCare" && w.Body.String() != tt.body) || pattern != tt.pattern {
 			t.Errorf("%s %s = %d %s (%s), want %d %s (%s)", tt.method, tt.path, w.Code, w.Body.String(), pattern, tt.code, tt.body, tt.pattern)
 		}

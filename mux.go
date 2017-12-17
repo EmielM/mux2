@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 	"path"
+	"sort"
+	"strings"
 )
 
 type muxEntry struct {
@@ -39,10 +41,16 @@ func (m *Mux) Pop(_ Middleware) {
 }
 
 func (m *Mux) handle(method, pattern string, h http.Handler, mw ...Middleware) {
+	// we need a wildcard indicator that compares less than all other chars:
+	pattern = strings.Replace(pattern, ":", "!", -1)
 	for _, x := range append(mw, m.mw...) {
 		h = x(h)
 	}
 	m.m = append(m.m, muxEntry{method, pattern, h})
+
+	sort.Slice(m.m, func(i, j int) bool {
+		return m.m[i].pattern > m.m[j].pattern
+	})
 }
 
 func (m *Mux) Handle(p string, h http.Handler, mw ...Middleware) {
@@ -57,59 +65,66 @@ func (m *Mux) Get(p string, h http.Handler, mw ...Middleware)    { m.handle("GET
 func (m *Mux) Post(p string, h http.Handler, mw ...Middleware)   { m.handle("POST", p, h, mw...) }
 func (m *Mux) Put(p string, h http.Handler, mw ...Middleware)    { m.handle("PUT", p, h, mw...) }
 func (m *Mux) Delete(p string, h http.Handler, mw ...Middleware) { m.handle("DELETE", p, h, mw...) }
+func (m *Mux) Patch(p string, h http.Handler, mw ...Middleware)  { m.handle("PATCH", p, h, mw...) }
 
-type paramsKey struct{}
+func (m Mux) handler(host, method, path string) (http.Handler, string) {
 
-func (m Mux) handler(host, method, path string) (http.Handler, string, map[string]string) {
-	var b *muxEntry
-	var p map[string]string
-	for i, e := range m.m {
-		if e.method != "" && e.method != method {
-			continue
-		}
-		if b != nil && b.pattern > e.pattern {
-			// priority is established by comparing the pattern strings, this works because
-			// "abc" > "ab"
-			// "a/b/c" > "a/:wildcard/c"
-			continue
-		}
-		if ok, p0 := match(e.pattern, path); ok {
-			b = &m.m[i]
-			p = p0
+	// m.m is reverse-sorted by pattern: "/x/a", "/x/", "/x", "/blob", "/!userID/x", "/"
+	// binary search lower bound in m.m
+	i, j := 0, len(m.m)
+	for i < j {
+		h := (i + j) / 2
+		if m.m[h].pattern > path {
+			i = h + 1
+		} else {
+			j = h
 		}
 	}
-	if b == nil {
-		return http.NotFoundHandler(), "", nil
+
+	// considering path "/123" with the above example, i will now point to /!userID/x
+	// (since "/!userID" is the first value less than "/123")
+
+	if i != len(m.m) {
+		// fast-path for static routes, since match("abc", "abc") is still a lot slower than "abc" == "abc"
+		e := m.m[i]
+		if (e.method == "" || e.method == method) && e.pattern == path {
+			return e.h, e.pattern
+		}
 	}
-	h := b.h
-	return h, b.pattern, p
+
+	// go pattern-match till first match
+	for i < len(m.m) {
+		e := m.m[i]
+		if (e.method == "" || e.method == method) && match(e.pattern, path) {
+			return e.h, e.pattern
+		}
+		i++
+	}
+
+	return http.NotFoundHandler(), ""
 }
 
-func match(pat, str string) (bool, map[string]string) {
+func match(pat, str string) bool {
 	var p, s int
-	pr := map[string]string{}
 	for {
 		if p == len(pat) && s == len(str) {
 			// precise match
-			return true, pr
+			return true
 		} else if p == len(pat) && p > 0 && pat[p-1] == '/' {
 			// pattern ending with /, remaining string
-			return true, pr
+			return true
 		} else if p == len(pat) || s == len(str) {
 			// running out of pattern or string
-			return false, nil
-		} else if pat[p] == ':' {
-			p0 := p
-			s0 := s
+			return false
+		} else if pat[p] == '!' {
 			for p != len(pat) && pat[p] != '/' {
 				p++
 			}
 			for s != len(str) && str[s] != '/' {
 				s++
 			}
-			pr[pat[p0+1:p]] = str[s0:s]
 		} else if pat[p] != str[s] {
-			return false, nil
+			return false
 		} else {
 			s++
 			p++
@@ -117,16 +132,18 @@ func match(pat, str string) (bool, map[string]string) {
 	}
 }
 
-func (m Mux) Handler(r *http.Request) (http.Handler, string, map[string]string) {
+func (m Mux) Handler(r *http.Request) (http.Handler, string) {
 	path := cleanPath(r.URL.Path)
 	if path != r.URL.Path {
-		_, pattern, _ := m.handler(r.Host, r.Method, path)
+		_, pattern := m.handler(r.Host, r.Method, path)
 		url := *r.URL
 		url.Path = path
-		return http.RedirectHandler(url.String(), http.StatusMovedPermanently), pattern, nil
+		return http.RedirectHandler(url.String(), http.StatusMovedPermanently), pattern
 	}
 	return m.handler(r.Host, r.Method, r.URL.Path)
 }
+
+type paramsCtxKey struct{}
 
 func (m Mux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.RequestURI == "*" {
@@ -137,9 +154,9 @@ func (m Mux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	h, _, p := m.Handler(r)
-	if p != nil {
-		r = r.WithContext(context.WithValue(r.Context(), paramsKey{}, p))
+	h, p := m.Handler(r)
+	if strings.IndexByte(p, '!') >= 0 {
+		r = r.WithContext(context.WithValue(r.Context(), paramsCtxKey{}, params{p, r.URL.Path}))
 	}
 	h.ServeHTTP(w, r)
 }
@@ -161,14 +178,34 @@ func cleanPath(p string) string {
 	return np
 }
 
-func Params(r *http.Request) map[string]string {
-	p, _ := r.Context().Value(paramsKey{}).(map[string]string)
-	return p
+type params struct {
+	pat, str string
+}
+
+func (pp params) Get(key string) string {
+	var p, s int
+	for p != len(pp.pat) && s != len(pp.str) {
+		if pp.pat[p] == '!' {
+			p0 := p
+			s0 := s
+			for p != len(pp.pat) && pp.pat[p] != '/' {
+				p++
+			}
+			for s != len(pp.str) && pp.str[s] != '/' {
+				s++
+			}
+			if pp.pat[p0+1:p] == key {
+				return pp.str[s0:s]
+			}
+		} else {
+			s++
+			p++
+		}
+	}
+	return ""
 }
 
 func Param(r *http.Request, key string) string {
-	if p := Params(r); p != nil {
-		return p[key]
-	}
-	return ""
+	p, _ := r.Context().Value(paramsCtxKey{}).(params)
+	return p.Get(key)
 }
