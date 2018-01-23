@@ -129,10 +129,15 @@ func match(pat, str string) bool {
 			// running out of pattern or string
 			return false
 		} else if pat[p] == '!' {
-			for p != len(pat) && pat[p] != '/' {
+			p++
+			for p != len(pat) && ((pat[p] >= 'a' && pat[p] <= 'z') || (pat[p] >= 'A' && pat[p] <= 'Z')) {
 				p++
 			}
-			for s != len(str) && str[s] != '/' {
+			var br byte = '/'
+			if p != len(pat) {
+				br = pat[p]
+			}
+			for s != len(str) && str[s] != br {
 				s++
 			}
 		} else if pat[p] != str[s] {
@@ -208,15 +213,23 @@ func (pp params) Get(key string) string {
 	var p, s int
 	for p != len(pp.pat) && s != len(pp.str) {
 		if pp.pat[p] == '!' {
+
+			p++
+
 			p0 := p
 			s0 := s
-			for p != len(pp.pat) && pp.pat[p] != '/' {
+
+			for p != len(pp.pat) && ((pp.pat[p] >= 'a' && pp.pat[p] <= 'z') || (pp.pat[p] >= 'A' && pp.pat[p] <= 'Z')) {
 				p++
 			}
-			for s != len(pp.str) && pp.str[s] != '/' {
+			var br byte = '/'
+			if p != len(pp.pat) {
+				br = pp.pat[p]
+			}
+			for s != len(pp.str) && pp.str[s] != br {
 				s++
 			}
-			if pp.pat[p0+1:p] == key {
+			if pp.pat[p0:p] == key {
 				return pp.str[s0:s]
 			}
 		} else {
