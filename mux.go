@@ -41,7 +41,7 @@ func (m *Mux) Pop(_ Middleware) {
 	m.mw = m.mw[1:]
 }
 
-func (m *Mux) handle(method, pattern string, h http.Handler, mw ...Middleware) {
+func (m *Mux) HandleMethod(method, pattern string, h http.Handler, mw ...Middleware) {
 	// "!" is used as wildcard indicator that compares less than all other chars
 	pattern = strings.Replace(pattern, ":", "!", -1)
 	for _, x := range append(mw, m.mw...) {
@@ -64,20 +64,16 @@ func (m *Mux) handle(method, pattern string, h http.Handler, mw ...Middleware) {
 // Handle registers the handler for the given pattern.
 // Any method will be matched.
 func (m *Mux) Handle(p string, h http.Handler, mw ...Middleware) {
-	m.handle("", p, h, mw...)
+	m.HandleMethod("", p, h, mw...)
 }
 
-// HandleFunc registers the handler function for the given pattern.
-// Any method will be matched.
-func (m *Mux) HandleFunc(p string, h func(http.ResponseWriter, *http.Request), mw ...Middleware) {
-	m.handle("", p, http.HandlerFunc(h), mw...)
+func (m *Mux) Get(p string, h http.Handler, mw ...Middleware)   { m.HandleMethod("GET", p, h, mw...) }
+func (m *Mux) Post(p string, h http.Handler, mw ...Middleware)  { m.HandleMethod("POST", p, h, mw...) }
+func (m *Mux) Put(p string, h http.Handler, mw ...Middleware)   { m.HandleMethod("PUT", p, h, mw...) }
+func (m *Mux) Patch(p string, h http.Handler, mw ...Middleware) { m.HandleMethod("PATCH", p, h, mw...) }
+func (m *Mux) Delete(p string, h http.Handler, mw ...Middleware) {
+	m.HandleMethod("DELETE", p, h, mw...)
 }
-
-func (m *Mux) Get(p string, h http.Handler, mw ...Middleware)    { m.handle("GET", p, h, mw...) }
-func (m *Mux) Post(p string, h http.Handler, mw ...Middleware)   { m.handle("POST", p, h, mw...) }
-func (m *Mux) Put(p string, h http.Handler, mw ...Middleware)    { m.handle("PUT", p, h, mw...) }
-func (m *Mux) Patch(p string, h http.Handler, mw ...Middleware)  { m.handle("PATCH", p, h, mw...) }
-func (m *Mux) Delete(p string, h http.Handler, mw ...Middleware) { m.handle("DELETE", p, h, mw...) }
 
 func (m Mux) handler(host, method, path string) (http.Handler, string) {
 

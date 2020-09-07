@@ -1,4 +1,4 @@
-# mux2 [![Build Status](https://travis-ci.org/EmielM/mux2.svg?branch=master)](http://travis-ci.org/EmielM/mux2) [![GoDoc](https://godoc.org/github.com/emielm/mux2?status.svg)](http://godoc.org/github.com/julienschmidt/httprouter)
+# mux2 [![Build Status](https://travis-ci.org/EmielM/mux2.svg?branch=master)](http://travis-ci.org/EmielM/mux2) [![GoDoc](https://godoc.org/github.com/emielm/mux2?status.svg)](https://godoc.org/github.com/emielm/mux2)
 
 A http router (mux) with the simplicity of `net/http`'s `ServeMux`, but adds:
 
